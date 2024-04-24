@@ -3,6 +3,7 @@ import scala.Tuple2;
 import scala.Tuple3;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,52 @@ public class G008HW2 {
     public static void main(String[] args) throws IOException {
         System.out.println("ciao");
     }
+
+    public static double distance(List<Double> point1, List<Double> point2) {
+        // Calculate Euclidean distance between two points
+        double sum = 0;
+        for (int i = 0; i < point1.size(); i++) {
+            sum += Math.pow(point1.get(i) - point2.get(i), 2);
+        }
+        return Math.sqrt(sum);
+    }
+
+    public static List<List<Double>> SequentialFFT(List<List<Double>> points, int K) {
+
+        // Choose the first point arbitrarily
+        List<List<Double>> centers = new ArrayList<>();
+        centers.add(points.get(0));
+
+        // IDEA: maximize the minimum distance between a point and the closest center
+
+        // While the number of centers is less than K
+        while (centers.size() < K) {
+
+            // Find the point farthest from the current centers
+            List<Double> farthestPoint = null;
+            double maxDistance = Double.MIN_VALUE;
+
+            for (List<Double> point : points) {
+                double minDistance = Double.MAX_VALUE;
+
+                // Find the closest center distance
+                for (List<Double> center : centers)
+                    minDistance = Math.min(minDistance, distance(point, center));
+
+                // With minDistance we have that the point
+                if (minDistance > maxDistance) {
+                    maxDistance = minDistance;
+                    farthestPoint = point;
+                }
+            }
+
+            // Add the farthest point to the centers list
+            centers.add(farthestPoint);
+        }
+
+        return centers;
+    }
+
 
     public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float D, int M) {
         // ROUND 1
