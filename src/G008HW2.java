@@ -54,8 +54,11 @@ public class G008HW2 {
                 return new Tuple2<>(point._1(), point._2());
             });
             startTime = System.currentTimeMillis();
+            float R = MRFFT(inputPoints, K);
+            endTime = System.currentTimeMillis();
+            startTime = System.currentTimeMillis();
             // D is the radius of the K-center clustering, the maximum distance of a point from its closest center
-            // MRApproxOutliers(inputPoints, R, M, K);
+            MRApproxOutliers(inputPoints, R, M, K);
             endTime = System.currentTimeMillis();
             totalTime = endTime - startTime;
             System.out.println("Running time of MRApproxOutliers  = " + totalTime + "ms");
@@ -120,15 +123,15 @@ public class G008HW2 {
      * MapReduce FFT-Algorithm
      * @param inputPoints - set of input points stored in an RDD
      * @param K - number of clusters
-     * @return C - set of K centers
+     * @return R - radius R
      */
-    public static List<Point> MRFFT(JavaPairRDD<Float, Float> inputPoints, int K) {
+    public static float MRFFT(JavaPairRDD<Float, Float> inputPoints, int K) {
         long startTime;
         long endTime;
         // Round 1
         // Map - Partition P arbitrarily into l subsets of equal size
         // Reduce - for every partition run FFT on Pi to determine a set Ti of K centers
-        int l = K; // number of input points partitions
+        int l = K; // TODO: change here, l should be L taken in input, all the partition step must be moved into the main
         startTime = System.currentTimeMillis();
         JavaPairRDD<Integer, List<Point>> pointPartitions = inputPoints.mapToPair(point -> {
             Random random = new Random();
@@ -153,7 +156,7 @@ public class G008HW2 {
         // Compute and returns the radius R of the clustering induced by the centers that is dist(x, C) for every x in P.
         startTime = System.currentTimeMillis();
         Broadcast<List<Point>> centersBroadcast = new JavaSparkContext(inputPoints.context()).broadcast(centers);
-        float radius = inputPoints.mapToDouble(point -> {
+        float R = inputPoints.mapToDouble(point -> {
             List<Point> centersList = centersBroadcast.getValue();
             double minDistance = Double.MAX_VALUE;
 
@@ -167,9 +170,9 @@ public class G008HW2 {
         endTime = System.currentTimeMillis();
         System.out.println("Round 3 - " + (endTime - startTime) + " ms.");
 
-        return centers;
+        return R;
     }
-    public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float D, int M) {
+    public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float R, float D, int M) {
         // ROUND 1
         // Mapping each pair (X,Y) into ((X,Y), 1)
         JavaPairRDD<Tuple2<Integer, Integer>, Long> cell = inputPoints.flatMapToPair(point -> { // <-- MAP PHASE (R1)
@@ -229,13 +232,12 @@ public class G008HW2 {
 
         // First K cells in non-decreasing order of cell size
         // IDEA: K is computed looking at the number of centers
-        /*List<Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>>> topKCells = cell.mapToPair(
+        List<Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>>> topKCells = cell.mapToPair(
                 tuple -> new Tuple2<>(tuple._2(), tuple)
-        ).sortByKey(true).take(K);
+        ).sortByKey(true).take((int) R);
 
         for (Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>> i_cell : topKCells)
             System.out.println("Cell: " + i_cell._2()._1() + " Size = " + i_cell._1());
-        */
     }
 }
 
