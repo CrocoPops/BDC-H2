@@ -12,6 +12,8 @@ import java.util.*;
 
 public class G008HW2 {
 
+    private static List<Point> centers;
+
     public void main(String[] args) throws IOException {
         // Check if the number of arguments is correct
         if (args.length != 4)
@@ -73,7 +75,7 @@ public class G008HW2 {
      * @return C - a set of K centers of the cluster
      */
     public static List<Point> SequentialFFT(List<Point> listOfPoints, int K) {
-        List<Point> C = null;
+        List<Point> C = new ArrayList<>();
         Random random = new Random();
         // Choosing randomly the first center
         Point p = listOfPoints.get(random.nextInt(listOfPoints.size()));
@@ -83,7 +85,8 @@ public class G008HW2 {
         Map<Point, Double> distances = new HashMap<>();
         // Compute for every point the distances from its closest center
         for(Point point: listOfPoints) {
-            double maxDistance = -1.0;
+            double maxDistance = Double.MIN_VALUE;
+            // O(1)
             for(Point center: C) {
                 double distance = point.distanceTo(center);
                 if(distance > maxDistance) {
@@ -95,7 +98,7 @@ public class G008HW2 {
         //O(|P|*K)
         for(int i = 1; i < K; i++) {
             Point cand = null;
-            double maxDistance = -1.0;
+            double maxDistance = Double.MIN_VALUE;
             // Farthest point becomes a center
             for(Map.Entry<Point, Double> entry: distances.entrySet()) {
                 if(entry.getValue() > maxDistance) {
@@ -110,6 +113,7 @@ public class G008HW2 {
             // The distances must be recomputed
             // Some points now could be closer to the new center then to the previous one
             for(Map.Entry<Point, Double> entry: distances.entrySet()) {
+                assert cand != null;
                 double distance = entry.getKey().distanceTo(cand);
                 if(distance < entry.getValue()) {
                     distances.put(entry.getKey(), distance);
@@ -135,7 +139,7 @@ public class G008HW2 {
         startTime = System.currentTimeMillis();
         JavaPairRDD<Integer, List<Point>> pointPartitions = inputPoints.mapToPair(point -> {
             Random random = new Random();
-            return new Tuple2<>(random.nextInt(l+1), point);
+            return new Tuple2<>(random.nextInt(l), point);
         }).groupByKey().mapValues(iterable -> {
             List<Point> pointsPartition = new ArrayList<>();
             iterable.forEach(p -> pointsPartition.add(new Point(p._1(), p._2())));
@@ -149,7 +153,7 @@ public class G008HW2 {
         // of K centers and return S as output
         startTime = System.currentTimeMillis();
         JavaRDD<Point> T = pointPartitions.values().flatMap(List::iterator);
-        List<Point> centers = SequentialFFT(T.collect(), K);
+        centers = SequentialFFT(T.collect(), K);
         endTime = System.currentTimeMillis();
         System.out.println("Round 2 - " + (endTime - startTime) + " ms.");
         // Round 3
