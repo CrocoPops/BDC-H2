@@ -14,7 +14,7 @@ public class G008HW2 {
 
     private static List<Point> centers;
 
-    public void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException {
         // Check if the number of arguments is correct
         if (args.length != 4)
             throw new IllegalArgumentException("Wrong number of params!");
@@ -55,12 +55,10 @@ public class G008HW2 {
 
                 return new Tuple2<>(point._1(), point._2());
             });
-            startTime = System.currentTimeMillis();
             float R = MRFFT(inputPoints, K);
-            endTime = System.currentTimeMillis();
             startTime = System.currentTimeMillis();
             // D is the radius of the K-center clustering, the maximum distance of a point from its closest center
-            MRApproxOutliers(inputPoints, R, M, K);
+            MRApproxOutliers(inputPoints, R, M);
             endTime = System.currentTimeMillis();
             totalTime = endTime - startTime;
             System.out.println("Running time of MRApproxOutliers  = " + totalTime + "ms");
@@ -133,18 +131,23 @@ public class G008HW2 {
         long startTime;
         long endTime;
         // Round 1
-        // Map - Partition P arbitrarily into l subsets of equal size
+        // Map - For each partition P map all the points (Tuple2<Float, Float>) in a unique List<Point>
         // Reduce - for every partition run FFT on Pi to determine a set Ti of K centers
-        int l = K; // TODO: change here, l should be L taken in input, all the partition step must be moved into the main
         startTime = System.currentTimeMillis();
-        JavaPairRDD<Integer, List<Point>> pointPartitions = inputPoints.mapToPair(point -> {
-            Random random = new Random();
-            return new Tuple2<>(random.nextInt(l), point);
-        }).groupByKey().mapValues(iterable -> {
-            List<Point> pointsPartition = new ArrayList<>();
-            iterable.forEach(p -> pointsPartition.add(new Point(p._1(), p._2())));
-            return SequentialFFT(pointsPartition, K);
+        JavaRDD<List<Point>> centersPartition = inputPoints.mapPartitions(pointsIterator -> {
+            List<Point> pointList = new ArrayList<Point>();
+            while(pointsIterator.hasNext()){
+                Tuple2<Float, Float> point = pointsIterator.next();
+                pointList.add(new Point(point._1(), point._2()));
+            }
+            //TODO: Is this a reduce phase?
+            List<Point> centersForPartition = SequentialFFT(pointList, K);
+            return Collections.singletonList(centersForPartition).iterator();
         });
+        /*JavaRDD<List<Point>> pointsPartition = inputPoints.flatMap(point -> {
+            List<Point> pointList = new ArrayList<Point>();
+            pointList.add(new Point(point._1(), point._2()));
+        }).reduce(ciao ->)*/
         endTime = System.currentTimeMillis();
         System.out.println("Round 1 - " + (endTime - startTime) + " ms.");
         // Round 2
@@ -152,8 +155,10 @@ public class G008HW2 {
         // Reduce - gather the coreset T of size l*k and run, using a single reducer, FFT on T to determine a set S
         // of K centers and return S as output
         startTime = System.currentTimeMillis();
-        JavaRDD<Point> T = pointPartitions.values().flatMap(List::iterator);
-        centers = SequentialFFT(T.collect(), K);
+        // Divide the list of the centers in each partition in centers
+        JavaRDD<Point> T = centersPartition.flatMap(List::iterator);
+        // Compute the SequentialFFT() on the entire RDD
+        centers = SequentialFFT(T.collect(), K); //TODO: there is an error here during the execution.
         endTime = System.currentTimeMillis();
         System.out.println("Round 2 - " + (endTime - startTime) + " ms.");
         // Round 3
@@ -176,7 +181,7 @@ public class G008HW2 {
 
         return R;
     }
-    public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float R, float D, int M) {
+    public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float D, int M) {
         // ROUND 1
         // Mapping each pair (X,Y) into ((X,Y), 1)
         JavaPairRDD<Tuple2<Integer, Integer>, Long> cell = inputPoints.flatMapToPair(point -> { // <-- MAP PHASE (R1)
@@ -233,7 +238,7 @@ public class G008HW2 {
         for (Tuple2<Tuple2<Integer, Integer>, Tuple3<Long, Long, Long>> i : cellNeighbors.filter(triple -> triple._2()._2() <= M && triple._2()._3() > M).collect())
             uncertainOutliers += i._2()._1();
         System.out.println("Number of uncertain points = " + uncertainOutliers);
-
+/*
         // First K cells in non-decreasing order of cell size
         // IDEA: K is computed looking at the number of centers
         List<Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>>> topKCells = cell.mapToPair(
@@ -242,7 +247,7 @@ public class G008HW2 {
 
         for (Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>> i_cell : topKCells)
             System.out.println("Cell: " + i_cell._2()._1() + " Size = " + i_cell._1());
-    }
+    */}
 }
 
 // Class used as struct to contain information about the points
