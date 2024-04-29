@@ -3,7 +3,6 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
-import org.jetbrains.annotations.NotNull;
 import scala.Tuple2;
 import scala.Tuple3;
 import java.io.*;
@@ -12,7 +11,7 @@ import java.util.*;
 
 public class G008HW2 {
 
-    private static List<Point> centers;
+    private static JavaSparkContext sc;
 
     public static void main(String[] args) throws IOException {
         // Check if the number of arguments is correct
@@ -34,10 +33,10 @@ public class G008HW2 {
 
         // Read all points in the file and add them to the list
         Scanner scanner = new Scanner(new File(args[0]));
-        List<Point> listOfPoints = new ArrayList<>();
+        List<Tuple2<Float, Float>> listOfPoints = new ArrayList<>();
         while (scanner.hasNextLine()) {
             String[] cords = scanner.nextLine().split(",");
-            listOfPoints.add(new Point(Float.parseFloat(cords[0]), Float.parseFloat(cords[1])));
+            listOfPoints.add(new Tuple2<>(Float.parseFloat(cords[0]), Float.parseFloat(cords[1])));
         }
 
         // Print the number of points
@@ -45,24 +44,30 @@ public class G008HW2 {
 
         // Creating the Spark context and calling outliers approximate computation
         SparkConf conf = new SparkConf(true).setAppName("OutlierDetector");
-        try (JavaSparkContext sc = new JavaSparkContext(conf)) {
-            sc.setLogLevel("ERROR");
-            // Divide the inputFile in L partitions (each line is assigned to a specific partition
-            JavaRDD<String> rawData = sc.textFile(args[0]).repartition(L).cache();
-            JavaPairRDD<Float, Float> inputPoints = rawData.mapToPair(document -> {
-                String[] cord = document.split(",");
-                Tuple2<Float, Float> point = new Tuple2<>(Float.parseFloat(cord[0]), Float.parseFloat(cord[1]));
+        sc = new JavaSparkContext(conf);
 
-                return new Tuple2<>(point._1(), point._2());
-            });
-            float R = MRFFT(inputPoints, K);
-            startTime = System.currentTimeMillis();
-            // D is the radius of the K-center clustering, the maximum distance of a point from its closest center
-            MRApproxOutliers(inputPoints, R, M);
-            endTime = System.currentTimeMillis();
-            totalTime = endTime - startTime;
-            System.out.println("Running time of MRApproxOutliers  = " + totalTime + "ms");
-        }
+        // Divide the inputFile in L partitions (each line is assigned to a specific partition
+        JavaRDD<String> rawData = sc.textFile(args[0]).repartition(L).cache();
+        JavaPairRDD<Float, Float> inputPoints = rawData.mapToPair(document -> {
+            String[] cord = document.split(",");
+            Tuple2<Float, Float> point = new Tuple2<>(Float.parseFloat(cord[0]), Float.parseFloat(cord[1]));
+
+            return new Tuple2<>(point._1(), point._2());
+        });
+        float R = MRFFT(inputPoints, K);
+        startTime = System.currentTimeMillis();
+        // D is the radius of the K-center clustering, the maximum distance of a point from its closest center
+        MRApproxOutliers(inputPoints, R, M);
+        endTime = System.currentTimeMillis();
+        totalTime = endTime - startTime;
+        System.out.println("Running time of MRApproxOutliers  = " + totalTime + "ms");
+
+    }
+
+    public static double distanceTo(Tuple2<Float, Float> p1, Tuple2<Float, Float> p2) {
+        float deltaX = p1._1() - p2._1();
+        float deltaY = p1._2() - p2._2();
+        return Math.pow(deltaX, 2) + Math.pow(deltaY, 2);
     }
 
     /**
@@ -72,21 +77,22 @@ public class G008HW2 {
      * @complex O(|P|*K)
      * @return C - a set of K centers of the cluster
      */
-    public static List<Point> SequentialFFT(List<Point> listOfPoints, int K) {
-        List<Point> C = new ArrayList<>();
+    public static List<Tuple2<Float, Float>> SequentialFFT(List<Tuple2<Float, Float>> listOfPoints, int K) {
+        List<Tuple2<Float, Float>> C = new ArrayList<>();
+        List<Tuple2<Float, Float>> copy = new ArrayList<>(listOfPoints);
         Random random = new Random();
         // Choosing randomly the first center
-        Point p = listOfPoints.get(random.nextInt(listOfPoints.size()));
+        Tuple2<Float, Float> p = copy.get(random.nextInt(copy.size()));
         C.add(p);
-        listOfPoints.remove(p);
+        copy.remove(p);
         // O(|P|)
-        Map<Point, Double> distances = new HashMap<>();
+        Map<Tuple2<Float, Float>, Double> distances = new HashMap<>();
         // Compute for every point the distances from its closest center
-        for(Point point: listOfPoints) {
+        for(Tuple2<Float, Float> point: copy) {
             double maxDistance = Double.MIN_VALUE;
             // O(1)
-            for(Point center: C) {
-                double distance = point.distanceTo(center);
+            for(Tuple2<Float, Float> center: C) {
+                double distance = distanceTo(point, center);
                 if(distance > maxDistance) {
                     maxDistance = distance;
                 }
@@ -95,24 +101,24 @@ public class G008HW2 {
         }
         //O(|P|*K)
         for(int i = 1; i < K; i++) {
-            Point cand = null;
+            Tuple2<Float, Float> cand = null;
             double maxDistance = Double.MIN_VALUE;
             // Farthest point becomes a center
-            for(Map.Entry<Point, Double> entry: distances.entrySet()) {
+            for(Map.Entry<Tuple2<Float, Float>, Double> entry: distances.entrySet()) {
                 if(entry.getValue() > maxDistance) {
                     maxDistance = entry.getValue();
                     cand = entry.getKey();
                 }
             }
             C.add(cand);
-            listOfPoints.remove(cand);
+            copy.remove(cand);
             distances.remove(cand);
 
             // The distances must be recomputed
             // Some points now could be closer to the new center then to the previous one
-            for(Map.Entry<Point, Double> entry: distances.entrySet()) {
+            for(Map.Entry<Tuple2<Float, Float>, Double> entry: distances.entrySet()) {
                 assert cand != null;
-                double distance = entry.getKey().distanceTo(cand);
+                double distance = distanceTo(entry.getKey(), cand);
                 if(distance < entry.getValue()) {
                     distances.put(entry.getKey(), distance);
                 }
@@ -134,20 +140,16 @@ public class G008HW2 {
         // Map - For each partition P map all the points (Tuple2<Float, Float>) in a unique List<Point>
         // Reduce - for every partition run FFT on Pi to determine a set Ti of K centers
         startTime = System.currentTimeMillis();
-        JavaRDD<List<Point>> centersPartition = inputPoints.mapPartitions(pointsIterator -> {
-            List<Point> pointList = new ArrayList<Point>();
+        JavaRDD<Tuple2<Float, Float>> centersPartition = inputPoints.mapPartitions(pointsIterator -> {
+            List<Tuple2<Float, Float>> pointList = new ArrayList<>();
             while(pointsIterator.hasNext()){
-                Tuple2<Float, Float> point = pointsIterator.next();
-                pointList.add(new Point(point._1(), point._2()));
+                pointList.add(pointsIterator.next());
             }
-            //TODO: Is this a reduce phase?
-            List<Point> centersForPartition = SequentialFFT(pointList, K);
-            return Collections.singletonList(centersForPartition).iterator();
+
+            return SequentialFFT(pointList, K).iterator();
         });
-        /*JavaRDD<List<Point>> pointsPartition = inputPoints.flatMap(point -> {
-            List<Point> pointList = new ArrayList<Point>();
-            pointList.add(new Point(point._1(), point._2()));
-        }).reduce(ciao ->)*/
+
+
         endTime = System.currentTimeMillis();
         System.out.println("Round 1 - " + (endTime - startTime) + " ms.");
         // Round 2
@@ -156,21 +158,24 @@ public class G008HW2 {
         // of K centers and return S as output
         startTime = System.currentTimeMillis();
         // Divide the list of the centers in each partition in centers
-        JavaRDD<Point> T = centersPartition.flatMap(List::iterator);
+        List<Tuple2<Float, Float>> T = centersPartition.collect();
+
         // Compute the SequentialFFT() on the entire RDD
-        centers = SequentialFFT(T.collect(), K); //TODO: there is an error here during the execution.
+        List<Tuple2<Float, Float>> centers = SequentialFFT(T, K);
         endTime = System.currentTimeMillis();
         System.out.println("Round 2 - " + (endTime - startTime) + " ms.");
+
+
         // Round 3
         // Compute and returns the radius R of the clustering induced by the centers that is dist(x, C) for every x in P.
         startTime = System.currentTimeMillis();
-        Broadcast<List<Point>> centersBroadcast = new JavaSparkContext(inputPoints.context()).broadcast(centers);
+        Broadcast<List<Tuple2<Float, Float>>> centersBroadcast = sc.broadcast(centers);
         float R = inputPoints.mapToDouble(point -> {
-            List<Point> centersList = centersBroadcast.getValue();
+            List<Tuple2<Float, Float>> centersList = centersBroadcast.getValue();
             double minDistance = Double.MAX_VALUE;
 
-            for(Point center: centersList) {
-                double distance = center.distanceTo(new Point(point._1(), point._2()));
+            for(Tuple2<Float, Float> center: centersList) {
+                double distance = distanceTo(center, point);
                 if(distance < minDistance)
                     minDistance = distance;
             }
@@ -238,41 +243,5 @@ public class G008HW2 {
         for (Tuple2<Tuple2<Integer, Integer>, Tuple3<Long, Long, Long>> i : cellNeighbors.filter(triple -> triple._2()._2() <= M && triple._2()._3() > M).collect())
             uncertainOutliers += i._2()._1();
         System.out.println("Number of uncertain points = " + uncertainOutliers);
-/*
-        // First K cells in non-decreasing order of cell size
-        // IDEA: K is computed looking at the number of centers
-        List<Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>>> topKCells = cell.mapToPair(
-                tuple -> new Tuple2<>(tuple._2(), tuple)
-        ).sortByKey(true).take((int) R);
-
-        for (Tuple2<Long, Tuple2<Tuple2<Integer, Integer>, Long>> i_cell : topKCells)
-            System.out.println("Cell: " + i_cell._2()._1() + " Size = " + i_cell._1());
-    */}
+    }
 }
-
-// Class used as struct to contain information about the points
-class Point implements Comparable<Point>{
-    float x;
-    float y;
-    Long nearby;
-
-    public Point(float x, float y){
-        this.x = x;
-        this.y = y;
-        this.nearby = 1L;
-    }
-
-    public double distanceTo(Point other) {
-        float deltaX = other.x - this.x;
-        float deltaY = other.y - this.y;
-        return Math.pow(deltaX, 2) + Math.pow(deltaY, 2);
-    }
-
-    @Override
-    public int compareTo(@NotNull Point o) {
-        return Long.compare(this.nearby, o.nearby);
-    }
-
-}
-
-
