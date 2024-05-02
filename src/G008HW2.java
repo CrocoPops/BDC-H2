@@ -79,18 +79,16 @@ public class G008HW2 {
      */
     public static List<Tuple2<Float, Float>> SequentialFFT(List<Tuple2<Float, Float>> listOfPoints, int K) {
         List<Tuple2<Float, Float>> C = new ArrayList<>();
-        List<Tuple2<Float, Float>> copy = new ArrayList<>(listOfPoints);
         Random random = new Random();
         // Choosing randomly the first center
-        Tuple2<Float, Float> p = copy.get(random.nextInt(copy.size()));
+        Tuple2<Float, Float> p = listOfPoints.get(random.nextInt(listOfPoints.size()));
         C.add(p);
-        copy.remove(p);
         // O(|P|)
         Map<Tuple2<Float, Float>, Double> distances = new HashMap<>();
         // Compute for every point the distances from its closest center
-        for(Tuple2<Float, Float> point: copy) {
+        for(Tuple2<Float, Float> point: listOfPoints) {
             double maxDistance = Double.MIN_VALUE;
-            // O(1)
+            // O(1) only one center
             for(Tuple2<Float, Float> center: C) {
                 double distance = distanceTo(point, center);
                 if(distance > maxDistance) {
@@ -111,7 +109,6 @@ public class G008HW2 {
                 }
             }
             C.add(cand);
-            copy.remove(cand);
             distances.remove(cand);
 
             // The distances must be recomputed
