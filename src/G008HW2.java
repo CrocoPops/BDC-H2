@@ -60,7 +60,7 @@ public class G008HW2 {
         MRApproxOutliers(inputPoints, R, M);
         endTime = System.currentTimeMillis();
         totalTime = endTime - startTime;
-        System.out.println("Running time of MRApproxOutliers  = " + totalTime + "ms");
+        System.out.println("Running time of MRApproxOutliers  = " + totalTime + " ms");
 
     }
 
@@ -148,7 +148,7 @@ public class G008HW2 {
 
 
         endTime = System.currentTimeMillis();
-        System.out.println("Round 1 - " + (endTime - startTime) + " ms.");
+        System.out.println("Running time of MRFFT Round 1 = " + (endTime - startTime) + " ms");
         // Round 2
         // Map - empty
         // Reduce - gather the coreset T of size l*k and run, using a single reducer, FFT on T to determine a set S
@@ -160,7 +160,7 @@ public class G008HW2 {
         // Compute the SequentialFFT() on the entire RDD
         List<Tuple2<Float, Float>> centers = SequentialFFT(T, K);
         endTime = System.currentTimeMillis();
-        System.out.println("Round 2 - " + (endTime - startTime) + " ms.");
+        System.out.println("Running time of MRFFT Round 2 = " + (endTime - startTime) + " ms");
 
 
         // Round 3
@@ -179,8 +179,8 @@ public class G008HW2 {
             return minDistance;
         }).reduce(Math::max).floatValue();
         endTime = System.currentTimeMillis();
-        System.out.println("Round 3 - " + (endTime - startTime) + " ms.");
-
+        System.out.println("Running time of MRFFT Round 3 = " + (endTime - startTime) + " ms");
+        System.out.println("Radius = " + R);
         return R;
     }
     public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float D, int M) {
