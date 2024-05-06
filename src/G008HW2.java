@@ -87,16 +87,9 @@ public class G008HW2 {
         Map<Tuple2<Float, Float>, Double> distances = new HashMap<>();
         // Compute for every point the distances from its closest center
         for(Tuple2<Float, Float> point: listOfPoints) {
-            double maxDistance = Double.MIN_VALUE;
-            // O(1) only one center
-            for(Tuple2<Float, Float> center: C) {
-                double distance = distanceTo(point, center);
-                if(distance > maxDistance) {
-                    maxDistance = distance;
-                }
-            }
-            distances.put(point, maxDistance);
+            distances.put(point, distanceTo(point, p));
         }
+
         //O(|P|*K)
         for(int i = 1; i < K; i++) {
             Tuple2<Float, Float> cand = null;
@@ -146,7 +139,8 @@ public class G008HW2 {
             return SequentialFFT(pointList, K).iterator();
         });
 
-
+        // Divide the list of the centers in each partition in centers TODO: the following line may be move to round 2
+        List<Tuple2<Float, Float>> T = centersPartition.collect();
         endTime = System.currentTimeMillis();
         System.out.println("Running time of MRFFT Round 1 = " + (endTime - startTime) + " ms");
         // Round 2
@@ -154,9 +148,6 @@ public class G008HW2 {
         // Reduce - gather the coreset T of size l*k and run, using a single reducer, FFT on T to determine a set S
         // of K centers and return S as output
         startTime = System.currentTimeMillis();
-        // Divide the list of the centers in each partition in centers
-        List<Tuple2<Float, Float>> T = centersPartition.collect();
-
         // Compute the SequentialFFT() on the entire RDD
         List<Tuple2<Float, Float>> centers = SequentialFFT(T, K);
         endTime = System.currentTimeMillis();
@@ -178,6 +169,7 @@ public class G008HW2 {
             }
             return minDistance;
         }).reduce(Math::max).floatValue();
+        R = (float)Math.sqrt(R);
         endTime = System.currentTimeMillis();
         System.out.println("Running time of MRFFT Round 3 = " + (endTime - startTime) + " ms");
         System.out.println("Radius = " + R);
