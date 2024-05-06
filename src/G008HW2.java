@@ -31,17 +31,6 @@ public class G008HW2 {
         // Printing CLI arguments
         System.out.println(args[0] + " M=" + args[1] + " K=" + args[2] + " L=" + args[3] + " ");
 
-        // Read all points in the file and add them to the list
-        Scanner scanner = new Scanner(new File(args[0]));
-        List<Tuple2<Float, Float>> listOfPoints = new ArrayList<>();
-        while (scanner.hasNextLine()) {
-            String[] cords = scanner.nextLine().split(",");
-            listOfPoints.add(new Tuple2<>(Float.parseFloat(cords[0]), Float.parseFloat(cords[1])));
-        }
-
-        // Print the number of points
-        System.out.println("Number of points = " + listOfPoints.size());
-
         // Creating the Spark context and calling outliers approximate computation
         SparkConf conf = new SparkConf(true).setAppName("OutlierDetector");
         sc = new JavaSparkContext(conf);
