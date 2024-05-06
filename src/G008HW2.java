@@ -43,6 +43,8 @@ public class G008HW2 {
 
             return new Tuple2<>(point._1(), point._2());
         });
+        // Print the number of points
+        System.out.println("Number of points = " + inputPoints.count());
         float R = MRFFT(inputPoints, K);
         startTime = System.currentTimeMillis();
         // D is the radius of the K-center clustering, the maximum distance of a point from its closest center
