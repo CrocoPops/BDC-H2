@@ -28,16 +28,17 @@ public class G008HW2 {
         long endTime;
         long totalTime;
 
-        // Printing CLI arguments
+        // Printing arguments
         System.out.println(args[0] + " M=" + args[1] + " K=" + args[2] + " L=" + args[3] + " ");
 
-        // Creating the Spark context and calling outliers approximate computation
+        // Creating the Spark context
         SparkConf conf = new SparkConf(true).setAppName("OutlierDetector");
         sc = new JavaSparkContext(conf);
 
-        // Divide the inputFile in L partitions (each line is assigned to a specific partition
+        // Divide the inputFile in L partitions
         JavaRDD<String> rawData = sc.textFile(args[0]).repartition(L).cache();
         JavaPairRDD<Float, Float> inputPoints = rawData.mapToPair(document -> {
+            // Parse the points' coordinates
             String[] cord = document.split(",");
             Tuple2<Float, Float> point = new Tuple2<>(Float.parseFloat(cord[0]), Float.parseFloat(cord[1]));
 
@@ -45,9 +46,11 @@ public class G008HW2 {
         });
         // Print the number of points
         System.out.println("Number of points = " + inputPoints.count());
+
+        // Compute the radius of the K-center clustering, the maximum distance of a point from its closest center
         float R = MRFFT(inputPoints, K);
         startTime = System.currentTimeMillis();
-        // D is the radius of the K-center clustering, the maximum distance of a point from its closest center
+        // Compute the approximate outliers
         MRApproxOutliers(inputPoints, R, M);
         endTime = System.currentTimeMillis();
         totalTime = endTime - startTime;
@@ -76,7 +79,7 @@ public class G008HW2 {
         C.add(p);
         // O(|P|)
         Map<Tuple2<Float, Float>, Double> distances = new HashMap<>();
-        // Compute for every point the distances from its closest center
+        // Compute for every point the distances from the center
         for(Tuple2<Float, Float> point: listOfPoints) {
             distances.put(point, distanceTo(point, p));
         }
@@ -118,8 +121,8 @@ public class G008HW2 {
         long startTime;
         long endTime;
         // Round 1
-        // Map - For each partition P map all the points (Tuple2<Float, Float>) in a unique List<Point>
-        // Reduce - for every partition run FFT on Pi to determine a set Ti of K centers
+        // Map - For each partition P map all the points (Tuple2<Float, Float>) in a unique List<Tuple2<Float, Float>>
+        // Reduce - for every partition run SequentialFFT on Pi to determine a set Ti of K centers
         startTime = System.currentTimeMillis();
         JavaRDD<Tuple2<Float, Float>> centersPartition = inputPoints.mapPartitions(pointsIterator -> {
             List<Tuple2<Float, Float>> pointList = new ArrayList<>();
@@ -128,17 +131,19 @@ public class G008HW2 {
             }
 
             return SequentialFFT(pointList, K).iterator();
-        }).cache();
-        long x = centersPartition.count();
+        }).cache(); // Save in local memory
+
+        // Force Spark to run the Round 1 doing an operation
+        long xTemp = centersPartition.count();
 
         endTime = System.currentTimeMillis();
         System.out.println("Running time of MRFFT Round 1 = " + (endTime - startTime) + " ms");
         // Round 2
         // Map - empty
-        // Reduce - gather the coreset T of size l*k and run, using a single reducer, FFT on T to determine a set S
+        // Reduce - gather the coreset T of size L*K and run, using a single reducer, SequentialFFT on T to determine a set S of centers
         // of K centers and return S as output
         startTime = System.currentTimeMillis();
-        // Divide the list of the centers in each partition in centers
+        // Collect all the centers of each Ti on T
         List<Tuple2<Float, Float>> T = centersPartition.collect();
         // Compute the SequentialFFT() on the entire RDD
         List<Tuple2<Float, Float>> centers = SequentialFFT(T, K);
