@@ -128,10 +128,9 @@ public class G008HW2 {
             }
 
             return SequentialFFT(pointList, K).iterator();
-        });
+        }).cache();
+        long x = centersPartition.count();
 
-        // Divide the list of the centers in each partition in centers TODO: the following line may be move to round 2
-        List<Tuple2<Float, Float>> T = centersPartition.collect();
         endTime = System.currentTimeMillis();
         System.out.println("Running time of MRFFT Round 1 = " + (endTime - startTime) + " ms");
         // Round 2
@@ -139,6 +138,8 @@ public class G008HW2 {
         // Reduce - gather the coreset T of size l*k and run, using a single reducer, FFT on T to determine a set S
         // of K centers and return S as output
         startTime = System.currentTimeMillis();
+        // Divide the list of the centers in each partition in centers
+        List<Tuple2<Float, Float>> T = centersPartition.collect();
         // Compute the SequentialFFT() on the entire RDD
         List<Tuple2<Float, Float>> centers = SequentialFFT(T, K);
         endTime = System.currentTimeMillis();
