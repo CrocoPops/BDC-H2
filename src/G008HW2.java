@@ -3,6 +3,7 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.storage.StorageLevel;
 import scala.Tuple2;
 import scala.Tuple3;
 import java.io.*;
@@ -133,15 +134,13 @@ public class G008HW2 {
         startTime = System.currentTimeMillis();
         JavaRDD<Tuple2<Float, Float>> centersPartition = inputPoints.mapPartitions(pointsIterator -> {
             List<Tuple2<Float, Float>> pointList = new ArrayList<>();
-            while(pointsIterator.hasNext()){
-                pointList.add(pointsIterator.next());
-            }
+            pointsIterator.forEachRemaining(pointList::add);
 
             return SequentialFFT(pointList, K).iterator();
-        }).cache(); // Caches the results in memory
+        }).persist(StorageLevel.MEMORY_AND_DISK()); // Caches the results in memory and eventually in disk
 
         // Force Spark to run the Round 1 doing an operation
-        long xTemp = centersPartition.count();
+        centersPartition.count();
 
         endTime = System.currentTimeMillis();
         System.out.println("Running time of MRFFT Round 1 = " + (endTime - startTime) + " ms");
