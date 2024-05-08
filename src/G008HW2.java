@@ -11,6 +11,7 @@ import java.util.*;
 
 public class G008HW2 {
 
+    // Initialized as global variable because we want to use the same JavaSparkContext both in MRFFT and in main method
     private static JavaSparkContext sc;
 
     public static void main(String[] args) throws IOException {
@@ -58,6 +59,12 @@ public class G008HW2 {
 
     }
 
+    /**
+     * Distance To
+     * @param p1 - first point
+     * @param p2 - second point
+     * @return distance - Euclidean distance between the two points
+     */
     public static double distanceTo(Tuple2<Float, Float> p1, Tuple2<Float, Float> p2) {
         float deltaX = p1._1() - p2._1();
         float deltaY = p1._2() - p2._2();
@@ -131,7 +138,7 @@ public class G008HW2 {
             }
 
             return SequentialFFT(pointList, K).iterator();
-        }).cache(); // Save in local memory
+        }).cache(); // Caches the results in memory
 
         // Force Spark to run the Round 1 doing an operation
         long xTemp = centersPartition.count();
@@ -172,6 +179,7 @@ public class G008HW2 {
         System.out.println("Radius = " + R);
         return R;
     }
+
     public static void MRApproxOutliers(JavaPairRDD<Float, Float> inputPoints, float D, int M) {
         // ROUND 1
         // Mapping each pair (X,Y) into ((X,Y), 1)
