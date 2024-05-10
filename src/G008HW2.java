@@ -35,7 +35,9 @@ public class G008HW2 {
 
         // Creating the Spark context
         SparkConf conf = new SparkConf(true).setAppName("OutlierDetector");
+        conf.set("spark.locality.wait", "0s");
         sc = new JavaSparkContext(conf);
+
 
         // Divide the inputFile in L partitions
         JavaRDD<String> rawData = sc.textFile(args[0]).repartition(L).cache();
@@ -86,34 +88,31 @@ public class G008HW2 {
         Tuple2<Float, Float> p = listOfPoints.get(random.nextInt(listOfPoints.size()));
         C.add(p);
         // O(|P|)
-        Map<Tuple2<Float, Float>, Double> distances = new HashMap<>();
+        double[] distances = new double[listOfPoints.size()];
         // Compute for every point the distances from the center
-        for(Tuple2<Float, Float> point: listOfPoints) {
-            distances.put(point, distanceTo(point, p));
+        for (int i = 0; i < listOfPoints.size(); i++) {
+            distances[i] = distanceTo(listOfPoints.get(i), p);
         }
 
         //O(|P|*K)
         for(int i = 1; i < K; i++) {
-            Tuple2<Float, Float> cand = null;
+            int cand = -1; // Index of the new candidate center
             double maxDistance = Double.MIN_VALUE;
             // Farthest point becomes a center
-            for(Map.Entry<Tuple2<Float, Float>, Double> entry: distances.entrySet()) {
-                if(entry.getValue() > maxDistance) {
-                    maxDistance = entry.getValue();
-                    cand = entry.getKey();
+            for (int j = 0; j < listOfPoints.size(); j++) {
+                if(distances[j] > maxDistance) {
+                    maxDistance = distances[j];
+                    cand = j;
                 }
             }
-            C.add(cand);
-            distances.remove(cand);
+            C.add(listOfPoints.get(cand));
+            distances[cand] = 0; // Set the distance to the nearest center = 0
 
             // The distances must be recomputed
             // Some points now could be closer to the new center then to the previous one
-            for(Map.Entry<Tuple2<Float, Float>, Double> entry: distances.entrySet()) {
-                assert cand != null;
-                double distance = distanceTo(entry.getKey(), cand);
-                if(distance < entry.getValue()) {
-                    distances.put(entry.getKey(), distance);
-                }
+            for (int j = 0; j < listOfPoints.size(); j++) {
+                double distance = distanceTo(listOfPoints.get(j), listOfPoints.get(cand));
+                distances[j] = Math.min(distances[j], distance);
             }
         }
         return C;
